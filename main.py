@@ -37,6 +37,10 @@ class TimingTracker:
 
         prom_metric.labels(operation=name, category=category, region=region).set(duration)
 
+    def record_total_time(self, region=""):
+        total_time = self.get_total_time()
+        prom_metric.labels(operation="total", category="total", region=region).set(total_time)
+
     def get_total_time(self):
         """Get total time for all operations"""
         return sum(op['duration'] for op in self.operations)
@@ -151,6 +155,8 @@ def main(region="fra"):
         health_duration = time.time() - health_start
         tracker.record("Health check", health_duration, "monitoring", region=region)
         print(f"    ✓ took {health_duration:.1f}s")
+
+        tracker.record_total_time(region=region)
 
     except Exception as e:
         print(f"\n✗ Error occurred: {e}")
