@@ -12,10 +12,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY monitor.py .
+COPY main.py .
 
 # Expose the port Prometheus uses
 EXPOSE 7777
 
 # Command to run the script
-CMD ["python", "monitor.py"]
+CMD ["python", "main.py"]
