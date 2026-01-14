@@ -179,5 +179,6 @@ if __name__ == "__main__":
         for region in ("fra", "was", "sin"):
             print("measuring time in", region)
             main(region=region)
-        print("sleeping 5 minutes")
-        time.sleep(300)
+            time.sleep(60)
+        print("sleeping 3 minutes")
+        time.sleep(180)
