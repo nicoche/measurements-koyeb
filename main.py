@@ -115,32 +115,34 @@ def main(region="fra"):
         print(f"    ✓ took {sandbox_create_duration:.1f}s")
 
         instance_status = ""
-        print("  → Waiting for instance creation...")
-        instance_create_start = time.time()
-        while instance_status == "":
-            instance_status = get_instance_status(instances_api, sandbox.id)
-            if instance_status == "":
-                time.sleep(0.2)
-        instance_create_duration = time.time() - instance_create_start
-        tracker.record("instance creation", instance_create_duration, "setup", region=region)
-        print(f"    ✓ took {instance_create_duration:.1f}s")
+        #NOTE(nicoche): http429 while polling for instance status. Let's just wait for instance to be started
 
-        print("  → Waiting for instance allocation...")
-        instance_allocation_start = time.time()
-        while instance_status not in ('InstanceStatus.STARTING', 'InstanceStatus.ALLOCATING', 'InstanceStatus.HEALTHY'):
-            instance_status = get_instance_status(instances_api, sandbox.id)
-            if instance_status == "":
-                time.sleep(0.2)
-        instance_allocation_duration = time.time() - instance_allocation_start
-        tracker.record("instance allocation", instance_allocation_duration, "setup", region=region)
-        print(f"    ✓ took {instance_allocation_duration:.1f}s")
+        # print("  → Waiting for instance creation...")
+        # instance_create_start = time.time()
+        # while instance_status == "":
+        #     instance_status = get_instance_status(instances_api, sandbox.id)
+        #     if instance_status == "":
+        #         time.sleep(0.2)
+        # instance_create_duration = time.time() - instance_create_start
+        # tracker.record("instance creation", instance_create_duration, "setup", region=region)
+        # print(f"    ✓ took {instance_create_duration:.1f}s")
+
+        # print("  → Waiting for instance allocation...")
+        # instance_allocation_start = time.time()
+        # while instance_status not in ('InstanceStatus.STARTING', 'InstanceStatus.ALLOCATING', 'InstanceStatus.HEALTHY'):
+        #     instance_status = get_instance_status(instances_api, sandbox.id)
+        #     if instance_status == "":
+        #         time.sleep(0.2)
+        # instance_allocation_duration = time.time() - instance_allocation_start
+        # tracker.record("instance allocation", instance_allocation_duration, "setup", region=region)
+        # print(f"    ✓ took {instance_allocation_duration:.1f}s")
 
         print("  → Waiting for instance to be started...")
         instance_starting_start = time.time()
         while instance_status not in ('InstanceStatus.STARTING', 'InstanceStatus.HEALTHY'):
             instance_status = get_instance_status(instances_api, sandbox.id)
             if instance_status == "":
-                time.sleep(0.2)
+                time.sleep(0.5)
         instance_starting_duration = time.time() - instance_starting_start
         tracker.record("instance starting", instance_starting_duration, "setup", region=region)
         print(f"    ✓ took {instance_starting_duration:.1f}s")
