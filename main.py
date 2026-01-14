@@ -12,19 +12,20 @@ from prometheus_client import start_http_server, Gauge
 from koyeb import Sandbox
 from koyeb.sandbox.utils import get_api_client
 
+prom_metric = Gauge(
+    'sandbox_operation_duration_seconds',
+    'Duration of sandbox operations in seconds',
+    ['operation', 'category', 'region']
+)
+
 class TimingTracker:
     """Track timing information for operations"""
     def __init__(self):
         self.operations = []
         self.categories = defaultdict(list)
 
-        self.prom_metric = Gauge(
-            'sandbox_operation_duration_seconds',
-            'Duration of sandbox operations in seconds',
-            ['operation', 'category']
-        )
 
-    def record(self, name, duration, category="general"):
+    def record(self, name, duration, category="general", region=""):
         """Record an operation's timing"""
         self.operations.append({
             'name': name,
@@ -34,7 +35,7 @@ class TimingTracker:
         })
         self.categories[category].append(duration)
 
-        self.prom_metric.labels(operation=name, category=category).set(duration)
+        prom_metric.labels(operation=name, category=category, region=region).set(duration)
 
     def get_total_time(self):
         """Get total time for all operations"""
@@ -77,7 +78,7 @@ def get_instance_status(instances_api, sandbox_id):
         return ""
     return str(rep.instances[0].status)
 
-def main():
+def main(region="fra"):
 
     
     print("Starting sandbox operations...")
@@ -103,9 +104,10 @@ def main():
             wait_ready=False,
             api_token=api_token,
             delete_after_delay=60,
+            region=region,
         )
         sandbox_create_duration = time.time() - sandbox_create_start
-        tracker.record("Sandbox creation", sandbox_create_duration, "setup")
+        tracker.record("Sandbox creation", sandbox_create_duration, "setup", region=region)
         print(f"    ✓ took {sandbox_create_duration:.1f}s")
 
         instance_status = ""
@@ -114,9 +116,9 @@ def main():
         while instance_status == "":
             instance_status = get_instance_status(instances_api, sandbox.id)
             if instance_status == "":
-                time.sleep(0.1)
+                time.sleep(0.2)
         instance_create_duration = time.time() - instance_create_start
-        tracker.record("instance creation", instance_create_duration, "setup")
+        tracker.record("instance creation", instance_create_duration, "setup", region=region)
         print(f"    ✓ took {instance_create_duration:.1f}s")
 
         print("  → Waiting for instance allocation...")
@@ -124,9 +126,9 @@ def main():
         while instance_status not in ('InstanceStatus.STARTING', 'InstanceStatus.ALLOCATING', 'InstanceStatus.HEALTHY'):
             instance_status = get_instance_status(instances_api, sandbox.id)
             if instance_status == "":
-                time.sleep(0.1)
+                time.sleep(0.2)
         instance_allocation_duration = time.time() - instance_allocation_start
-        tracker.record("instance allocation", instance_allocation_duration, "setup")
+        tracker.record("instance allocation", instance_allocation_duration, "setup", region=region)
         print(f"    ✓ took {instance_allocation_duration:.1f}s")
 
         print("  → Waiting for instance to be started...")
@@ -134,9 +136,9 @@ def main():
         while instance_status not in ('InstanceStatus.STARTING', 'InstanceStatus.HEALTHY'):
             instance_status = get_instance_status(instances_api, sandbox.id)
             if instance_status == "":
-                time.sleep(0.1)
+                time.sleep(0.2)
         instance_starting_duration = time.time() - instance_starting_start
-        tracker.record("instance starting", instance_starting_duration, "setup")
+        tracker.record("instance starting", instance_starting_duration, "setup", region=region)
         print(f"    ✓ took {instance_starting_duration:.1f}s")
 
         # Check health with timing
@@ -147,7 +149,7 @@ def main():
             is_healthy = sandbox.is_healthy()
             time.sleep(0.05)
         health_duration = time.time() - health_start
-        tracker.record("Health check", health_duration, "monitoring")
+        tracker.record("Health check", health_duration, "monitoring", region=region)
         print(f"    ✓ took {health_duration:.1f}s")
 
     except Exception as e:
@@ -160,7 +162,7 @@ def main():
             delete_start = time.time()
             sandbox.delete()
             delete_duration = time.time() - delete_start
-            tracker.record("Sandbox deletion", delete_duration, "cleanup")
+            tracker.record("Sandbox deletion", delete_duration, "cleanup", region=region)
             print(f"    ✓ took {delete_duration:.1f}s")
         
         print("\n✓ All operations completed")
@@ -174,6 +176,8 @@ if __name__ == "__main__":
     print("Starting Prometheus metrics server on port 7777...")
     start_http_server(7777)
     while True:
-        main()
+        for region in ("fra", "was", "sin"):
+            print("measuring time in", region)
+            main(region=region)
         print("sleeping 5 minutes")
         time.sleep(300)
