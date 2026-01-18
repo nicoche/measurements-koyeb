@@ -4,6 +4,7 @@
 import argparse
 import os
 import time
+import signal
 from collections import defaultdict
 from datetime import datetime
 
@@ -11,6 +12,9 @@ from prometheus_client import start_http_server, Gauge
 
 from koyeb import Sandbox
 from koyeb.sandbox.utils import get_api_client
+
+def timeout_handler(signum, frame):
+    raise Exception("Timeout reached!")
 
 prom_metric = Gauge(
     'sandbox_operation_duration_seconds',
@@ -115,27 +119,6 @@ def main(region="fra"):
         print(f"    ✓ took {sandbox_create_duration:.1f}s")
 
         instance_status = ""
-        #NOTE(nicoche): http429 while polling for instance status. Let's just wait for instance to be started
-
-        # print("  → Waiting for instance creation...")
-        # instance_create_start = time.time()
-        # while instance_status == "":
-        #     instance_status = get_instance_status(instances_api, sandbox.id)
-        #     if instance_status == "":
-        #         time.sleep(0.2)
-        # instance_create_duration = time.time() - instance_create_start
-        # tracker.record("instance creation", instance_create_duration, "setup", region=region)
-        # print(f"    ✓ took {instance_create_duration:.1f}s")
-
-        # print("  → Waiting for instance allocation...")
-        # instance_allocation_start = time.time()
-        # while instance_status not in ('InstanceStatus.STARTING', 'InstanceStatus.ALLOCATING', 'InstanceStatus.HEALTHY'):
-        #     instance_status = get_instance_status(instances_api, sandbox.id)
-        #     if instance_status == "":
-        #         time.sleep(0.2)
-        # instance_allocation_duration = time.time() - instance_allocation_start
-        # tracker.record("instance allocation", instance_allocation_duration, "setup", region=region)
-        # print(f"    ✓ took {instance_allocation_duration:.1f}s")
 
         print("  → Waiting for instance to be started...")
         instance_starting_start = time.time()
@@ -183,10 +166,17 @@ if __name__ == "__main__":
     # 4. Start the Prometheus endpoint on port 7777
     print("Starting Prometheus metrics server on port 7777...")
     start_http_server(7777)
+    signal.signal(signal.SIGALRM, timeout_handler)
     while True:
         for region in ("fra", "was", "sin"):
             print("measuring time in", region)
-            main(region=region)
+            signal.alarm(300)  # 5 minutes timeout
+            try:
+                main(region=region)
+            except Exception as e:
+                print(f"!!! Killed {region} due to timeout or error: {e}")
+            finally:
+                signal.alarm(0)  # Disable alarm so it doesn't kill the sleep
             time.sleep(60)
         print("sleeping 3 minutes")
         time.sleep(180)
